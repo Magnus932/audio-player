@@ -19,5 +19,7 @@ decoder.o:	src/decoder.c include/decoder.h include/generic.h
 audio.o:	src/audio.c include/audio.h include/generic.h
 	cc -c $(CFLAGS) src/audio.c
 
+install:
+	mv audio /usr/bin
 clean:
 	rm *.o

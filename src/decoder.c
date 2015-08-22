@@ -121,7 +121,6 @@ void free_audio_queue_pkts(music_player_t *music)
  * AVCodecContext etc. I couldnt figure out yet if there
  * is any other way using AVCodec to get the stream duration
  * easier without allocating much.
- *
  */
 int decoder_get_duration(char *fname)
 {

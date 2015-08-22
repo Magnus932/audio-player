@@ -79,6 +79,7 @@ void resume_progress_scale(music_player_t *music);
 void pause_progress_scale(music_player_t *music);
 void schedule_duration_thread(music_player_t *music);
 void *duration_thread(void *user_data);
-
+void colorize_song_playing(music_player_t *music);
+void uncolorize_last_song(music_player_t *music);
 
 #endif /* GTK_H */

@@ -128,28 +128,12 @@ void play_song(GtkTreeView *tree_view, GtkTreePath *p,
 	music_player_t *music = (music_player_t *)user_data;
 	guint num;
 
+	uncolorize_last_song(music);
 	gtk_tree_model_get_iter(GTK_TREE_MODEL(music->list),
 							&music->iter, p);
 	num = tree_view_row(GTK_TREE_MODEL(music->list), &music->iter);
 	decode_audio_file(music, (gchar *)g_slist_nth_data(music->paths, num));
-}
-
-void menu_play_song(GtkMenuItem *menu_item,
-					gpointer user_data)
-{
-	music_player_t *music = (music_player_t *)user_data;
-	GtkTreePath *path;
-	GtkTreeSelection *s;
-	GtkTreeModel **model;
-	GList *list;
-
-	s = gtk_tree_view_get_selection(GTK_TREE_VIEW(music->tree_view));
-	model = (GtkTreeModel **)&music->list;
-	list = gtk_tree_selection_get_selected_rows(s, model);
-
-	play_song(NULL, (GtkTreePath *)list->data, NULL,
-			  music);
-	g_list_free_full(list, (GDestroyNotify)gtk_tree_path_free);
+	colorize_song_playing(music);
 }
 
 void resume_song(GtkToolButton *tool_button,
@@ -470,6 +454,7 @@ void next_song(music_player_t *music)
 		decode_audio_file(music, filename);
 		return;
 	}
+	uncolorize_last_song(music);
 	do { 
 		retval = gtk_tree_model_iter_next(GTK_TREE_MODEL(music->list),
 									  	  &music->iter);
@@ -480,6 +465,7 @@ void next_song(music_player_t *music)
 		num = tree_view_row(GTK_TREE_MODEL(music->list), &music->iter);
 		filename = (gchar *)g_slist_nth_data(music->paths, num);
 	} while (!decode_audio_file(music, filename));
+	colorize_song_playing(music);
 }
 
 /*
@@ -706,7 +692,7 @@ void setup_tree_view(music_player_t *music)
 	gtk_tree_view_column_pack_start(music->num_song, music->num_rend, FALSE);
 	gtk_tree_view_column_set_attributes(music->num_song, music->num_rend,
 										"text", 0, "cell-background", 3,
-										"foreground", 4, NULL);
+										NULL);
 	gtk_tree_view_append_column(GTK_TREE_VIEW(music->tree_view), music->num_song);
 
 	music->song = gtk_tree_view_column_new();
@@ -715,7 +701,7 @@ void setup_tree_view(music_player_t *music)
 	gtk_tree_view_column_pack_start(music->song, music->song_rend, FALSE);
 	gtk_tree_view_column_set_attributes(music->song, music->song_rend,
 										"text", 1, "cell-background", 3,
-										"foreground", 4, NULL);
+										NULL);
 	gtk_tree_view_append_column(GTK_TREE_VIEW(music->tree_view), music->song);
 
 	music->dur = gtk_tree_view_column_new();
@@ -724,7 +710,7 @@ void setup_tree_view(music_player_t *music)
 	gtk_tree_view_column_pack_start(music->dur, music->dur_rend, FALSE);
 	gtk_tree_view_column_set_attributes(music->dur, music->dur_rend,
 										"text", 2, "cell-background", 3,
-										"foreground", 4, NULL);
+										NULL);
 	gtk_tree_view_append_column(GTK_TREE_VIEW(music->tree_view), music->dur);
 
 	gtk_box_pack_start(GTK_BOX(music->vbox), music->scrolled_window, TRUE, TRUE, 0);
@@ -734,6 +720,20 @@ void setup_tree_view(music_player_t *music)
 	gtk_tree_view_set_model(GTK_TREE_VIEW(music->tree_view),
 							GTK_TREE_MODEL(music->list));
 	setup_tree_view_menu_popup(music);
+}
+
+void uncolorize_last_song(music_player_t *music)
+{
+	if (!gtk_list_store_iter_is_valid(music->list, &music->iter))
+		return;
+	gtk_list_store_set(music->list, &music->iter, 3,
+					   "white", -1);
+}
+
+void colorize_song_playing(music_player_t *music)
+{
+	gtk_list_store_set(music->list, &music->iter, 3, "gray",
+					   -1);
 }
 
 void add_playlist(music_player_t *music)
@@ -754,13 +754,14 @@ void add_playlist(music_player_t *music)
 
 	fd = open(buf, O_RDONLY, 0);
 	free(buf);
+	
 	if (fd == -1)
-		return;
+		goto err;
 	if (fstat(fd, &file_buf) == -1)
-		return;
+		goto err;
+
 	buf = (char *)malloc(sizeof(char) * file_buf.st_size);
 	len = read(fd, buf, file_buf.st_size);
-	buf[len] = '\0';
 	for (ptr = buf, ptr2 = buf; *ptr != '\0'; ptr++) {
 		if (!strncmp(ptr, "<<__0x40414243__>>", 18)) {
 			*ptr = '\0';
@@ -781,6 +782,7 @@ void add_playlist(music_player_t *music)
 		}
 	}
 	free(buf);
+err:
 	close(fd);
 }
 
