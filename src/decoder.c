@@ -121,8 +121,7 @@ void free_audio_queue_pkts(music_player_t *music)
  * AVCodecContext etc. I couldnt figure out yet if there
  * is any other way using AVCodec to get the stream duration
  * easier without allocating much.
- * Todo: Schedule a thread to get the duration after all files
- * has been added to playlist, this way it wont feel laggy.
+ *
  */
 int decoder_get_duration(char *fname)
 {
