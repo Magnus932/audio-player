@@ -26,7 +26,7 @@ AVCodecContext *get_audio_codec(music_player_t *music,
 int init_song_context(music_player_t *music, char *name);
 void cleanup_decoder(music_player_t *music);
 void free_audio_queue_pkts(music_player_t *music);
-int get_song_duration(music_player_t *music);
+int get_song_duration(AVStream *stream);
 int decode_audio_file(music_player_t *music, char *name);
 int seek_frame(music_player_t *music);
 void *audio_packet_loop(void *user_data);
@@ -36,5 +36,6 @@ int pkt_queue_insert(music_player_t *music, AVPacket *packet);
 int pkt_queue_get(music_player_t *music, AVPacket *packet);
 void decoder_update_frame(music_player_t *music,
 						  long value, int flag);
+int decoder_get_duration(gchar *fname);
 
 #endif /* DECODER_H */

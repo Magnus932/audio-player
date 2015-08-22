@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "include/generic.h"
+#include "generic.h"
 
 void ctx_drain_complete(pa_context *ctx,
 						void *user_data)
@@ -23,7 +23,7 @@ int decode_audio_pkt(music_player_t *music, char *buf)
 	while (1) {
 		while (pkt.size > 0) {
 			len = avcodec_decode_audio4(DECODER_CODEC_CTX(music), &frame,
-											&got_audio, &pkt);
+										&got_audio, &pkt);
 			if (len < 0)
 				/*
 				 * If len < 0 we simply break out and fetch
@@ -155,6 +155,7 @@ void stream_state_callback(pa_stream *stream, void *user_data)
 {
 	music_player_t *music = (music_player_t *)user_data;
 	pa_stream_state_t state;
+	AVStream *av_stream;
 
 	state = pa_stream_get_state(stream);
 	switch(state) {
@@ -164,7 +165,8 @@ void stream_state_callback(pa_stream *stream, void *user_data)
 		case PA_STREAM_TERMINATED:
 		break;
 		case PA_STREAM_READY:
-			start_progress_scale(music, get_song_duration(music));
+			av_stream = DECODER_CTX(music)->streams[DECODER_STREAM_ID(music)];
+			start_progress_scale(music, get_song_duration(av_stream));
 		break;
 	}
 }
@@ -276,12 +278,14 @@ void audio_set_volume(music_player_t *music)
 									 &vol, NULL, NULL);
 }
 
-void audio_unpause_song(music_player_t *music)
+void audio_resume_song(music_player_t *music)
 {
+	if (!AUDIO_STREAM(music))
+		return;
 	if (!pa_stream_is_corked(AUDIO_STREAM(music)))
 		return;
 	pa_stream_cork(AUDIO_STREAM(music), 0, NULL, NULL);
-	pthread_create(&music->tid, NULL, incr_progress_scale, music);
+	resume_progress_scale(music);
 }
 
 void audio_pause_song(music_player_t *music)
@@ -290,13 +294,22 @@ void audio_pause_song(music_player_t *music)
 		return;
 	if (!pa_stream_is_corked(AUDIO_STREAM(music))) {
 		pa_stream_cork(AUDIO_STREAM(music), 1, NULL, NULL);
-		pthread_cancel(music->tid);
+		pause_progress_scale(music);
 	}
 }
 
 void audio_stop_song(music_player_t *music)
 {
-	if (DECODER_CTX(music)) {
+	if (AUDIO_STREAM(music)) {
+		/*
+	 	 * If song is paused, running this code
+	 	 * will create a deadlock because the pulseaudio
+	 	 * thread will not pull packets and it will never
+	 	 * get to the point where a condition signal will
+	 	 * be sent. Unpause the stream if so.
+	 	 */
+	 	if (pa_stream_is_corked(AUDIO_STREAM(music)))
+	 		pa_stream_cork(AUDIO_STREAM(music), 0, NULL, NULL);
 		AUDIO_END_STREAM(music) = 1;
 		/*
 		 * Block waiting for a signal that
@@ -307,6 +320,8 @@ void audio_stop_song(music_player_t *music)
 		pthread_mutex_unlock(&AUDIO_LOCK(music));
 		free_audio_queue_pkts(music);
 		stop_progress_scale(music);
+		
+		AUDIO_END_STREAM(music) = 0;
 	}
 }
 

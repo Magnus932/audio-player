@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "include/generic.h"
+#include "generic.h"
 
 void init_decoder(music_player_t *music)
 {
@@ -86,6 +86,7 @@ err:
 
 void cleanup_decoder(music_player_t *music)
 {
+	avformat_close_input(&DECODER_CTX(music));
 	avformat_free_context(DECODER_CTX(music));
 	avcodec_free_context(&DECODER_CODEC_CTX(music));
 	DECODER_CTX(music) = NULL;
@@ -112,11 +113,59 @@ void free_audio_queue_pkts(music_player_t *music)
 	pthread_mutex_unlock(&DECODER_QUEUE_LOCK(music));
 }
 
-int get_song_duration(music_player_t *music)
+/*
+ * Getting the duration for each song in a large
+ * amount of songs makes this routine extremly slow,
+ * but it beats having a linked list with resources for
+ * each song. Example; 40,000 songs * AVFormatContext +
+ * AVCodecContext etc. I couldnt figure out yet if there
+ * is any other way using AVCodec to get the stream duration
+ * easier without allocating much.
+ * Todo: Schedule a thread to get the duration after all files
+ * has been added to playlist, this way it wont feel laggy.
+ */
+int decoder_get_duration(char *fname)
 {
+	/*
+	 * Routine is responsible for allocating an
+	 * AVFormatContext. It is used for figuring
+	 * out the duration of a song in a quick way when
+	 * a song is added into the playlist. The AVFormatContext
+	 * is a dummy value and will be free'd before returning
+	 * the duration in a unit of AVStream->time_base->den;
+	 * Return value; > 0 on success, 0 on failure.
+	 */
+	AVFormatContext *ctx;
 	AVStream *stream;
+	int duration = 0, i, x = -1;
 
-	stream = DECODER_CTX(music)->streams[DECODER_STREAM_ID(music)];
+	ctx = avformat_alloc_context();
+	if (!ctx)
+		goto out;
+	if (avformat_open_input(&ctx, fname, NULL, NULL) != 0)
+		goto out;
+	if (avformat_find_stream_info(ctx, NULL) < 0)
+		goto out;
+
+	for (i = 0; i < ctx->nb_streams; i++)
+		if (ctx->streams[i]->codec->codec_type == AVMEDIA_TYPE_AUDIO)
+			/*
+			 * We found an audio stream!. Pick up its
+			 * identifier.
+			 */
+			x = i;
+	if (x == -1)
+		goto out;
+	duration = get_song_duration(ctx->streams[x]);
+out:
+	avformat_close_input(&ctx);
+	avformat_free_context(ctx);
+
+	return duration;
+}
+
+int get_song_duration(AVStream *stream)
+{
 	return stream->duration / stream->time_base.den;
 }
 
@@ -138,7 +187,6 @@ int decode_audio_file(music_player_t *music, char *name)
 	 * them. Finally the audio data are put into a pulseaudio server
 	 * buffer, and beamed to the soundcard.
 	 */
-	AUDIO_END_STREAM(music) = 0;
 	if (pthread_create(&DECODER_THREAD_ID(music), NULL,
 					   audio_packet_loop, music)) {
 		fprintf(stderr, "Error; audio_packet_loop thread failed for song: %s\n",

@@ -52,7 +52,7 @@ void context_state_callback(pa_context *ctx,
 							void *user_data);
 void init_audio(music_player_t *music);
 void audio_set_volume(music_player_t *music);
-void audio_unpause_song(music_player_t *music);
+void audio_resume_song(music_player_t *music);
 void audio_pause_song(music_player_t *music);
 void audio_stop_song(music_player_t *music);
 void audio_close_connection(music_player_t *music);

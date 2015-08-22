@@ -1,20 +1,23 @@
 
-CFLAGS = `pkg-config --cflags gtk+-3.0` -ggdb
+CFLAGS = `pkg-config --cflags gtk+-3.0` -ggdb -Iinclude/
 LIBS = -lavcodec -lavformat -lavutil -lpthread -lpulse \
 		`pkg-config --libs gtk+-3.0`
-objects = main.o decoder.o audio.o
+objects = main.o gui.o decoder.o audio.o
 
 audio:	$(objects)
 	gcc -o $@ $(objects) $(LIBS)
 
-main.o:	main.c include/gtk.h include/generic.h
-	cc -c $(CFLAGS) main.c
+main.o:	src/main.c include/generic.h
+	cc -c $(CFLAGS) src/main.c
 
-decoder.o:	decoder.c include/decoder.h include/generic.h
-	cc -c $(CFLAGS) decoder.c
+gui.o:	src/gui.c include/gui.h include/generic.h
+	cc -c $(CFLAGS) src/gui.c
 
-audio.o:	audio.c include/audio.h include/generic.h
-	cc -c $(CFLAGS) audio.c
+decoder.o:	src/decoder.c include/decoder.h include/generic.h
+	cc -c $(CFLAGS) src/decoder.c
+
+audio.o:	src/audio.c include/audio.h include/generic.h
+	cc -c $(CFLAGS) src/audio.c
 
 clean:
 	rm *.o
