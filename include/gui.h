@@ -56,6 +56,9 @@ void play_audio_callback(GtkTreeView *tree_view, GtkTreePath *p,
 						 gpointer user_data);
 void open_file(GtkMenuItem *menu_item, gpointer user_data);
 void open_folder(GtkMenuItem *menu_item, gpointer user_data);
+gboolean tree_view_search(GtkTreeModel *model, gint column,
+						  const gchar *key, GtkTreeIter *iter,
+						  gpointer user_data);
 void tree_view_delete(GtkWidget *widget, GdkEvent *event,
 					  gpointer user_data);
 void setup_menu(music_player_t *music);
@@ -63,7 +66,7 @@ void setup_boxes(music_player_t *music);
 void setup_toolbar(music_player_t *music);
 void stop_progress_scale(music_player_t *music);
 void *incr_progress_scale(void *user_data);
-void start_progress_scale(music_player_t *music, guint max);
+void start_progress_scale(music_player_t *music);
 gboolean progress_scale_changed(GtkRange *range,
 			   					GtkScrollType scroll,
 								gdouble value,

@@ -166,7 +166,10 @@ void stream_state_callback(pa_stream *stream, void *user_data)
 		break;
 		case PA_STREAM_READY:
 			av_stream = DECODER_CTX(music)->streams[DECODER_STREAM_ID(music)];
-			start_progress_scale(music, get_song_duration(av_stream));
+
+			restart_progress_scale(music, get_song_duration(av_stream));
+			if (music->tid == 0)
+				start_progress_scale(music);
 		break;
 	}
 }
@@ -319,7 +322,6 @@ void audio_stop_song(music_player_t *music)
 		pthread_cond_wait(&AUDIO_COND(music), &AUDIO_LOCK(music));
 		pthread_mutex_unlock(&AUDIO_LOCK(music));
 		free_audio_queue_pkts(music);
-		stop_progress_scale(music);
 		
 		AUDIO_END_STREAM(music) = 0;
 	}

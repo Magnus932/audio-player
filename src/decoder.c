@@ -171,8 +171,10 @@ int decode_audio_file(music_player_t *music, char *name)
 {
 	audio_stop_song(music);
 
-	if (!init_song_context(music, name))
+	if (!init_song_context(music, name)) {
+		stop_progress_scale(music);
 		return 0;
+	}
 	/*
 	 * init_song_context initializes everything
 	 * that is needed to retrieve stream packets
@@ -189,6 +191,7 @@ int decode_audio_file(music_player_t *music, char *name)
 					   audio_packet_loop, music)) {
 		fprintf(stderr, "Error; audio_packet_loop thread failed for song: %s\n",
 				name);
+		stop_progress_scale(music);
 		cleanup_decoder(music);
 		return 0;
 	}

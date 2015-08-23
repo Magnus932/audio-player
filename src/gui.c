@@ -24,6 +24,9 @@
  */
 void exit_nicely(music_player_t *music)
 {
+	if (duration_thread_running(music))
+		if (!cancel_duration_thread(music))
+			return;
 	audio_stop_song(music);
 	audio_close_connection(music);
 	save_playlist(music);
@@ -155,7 +158,10 @@ void pause_song(GtkToolButton *tool_button,
 void stop_song(GtkToolButton *tool_button,
 			   gpointer user_data)
 {
-	audio_stop_song((music_player_t *)user_data);
+	music_player_t *music = (music_player_t *)user_data;
+	
+	stop_progress_scale(music);
+	audio_stop_song(music);
 }
 
 void repeat_song(GtkToolButton *tool_button,
@@ -285,6 +291,35 @@ void open_folder(GtkMenuItem *menu_item, gpointer user_data)
 	gtk_widget_destroy(dialog);
 }
 
+gint cancel_duration_thread(music_player_t *music)
+{
+	GtkWidget *dialog;
+	GtkDialogFlags flags;
+	gint retval;
+	gchar string[] = "Part of the audio player is still getting "
+					 "the duration of songs in the playlist. If "
+					 "you terminate the application now, some songs "
+					 "will be saved without the duration field in "
+					 "the playlist. Do you want to terminate?";
+
+	dialog = gtk_message_dialog_new(GTK_WINDOW(music->window),
+										flags, GTK_MESSAGE_WARNING,
+										GTK_BUTTONS_YES_NO, string);
+	retval = gtk_dialog_run(GTK_DIALOG(dialog));
+	gtk_widget_destroy(dialog);
+
+	if (retval == GTK_RESPONSE_YES) {
+		pthread_cancel(music->dur_tid);
+		return 1;
+	}
+	return 0;
+}
+
+gint duration_thread_running(music_player_t *music)
+{
+	return (music->dur_tid) ? 1 : 0; 
+}
+
 void *duration_thread(void *user_data)
 {
 	music_player_t *music = (music_player_t *)user_data;
@@ -297,6 +332,7 @@ void *duration_thread(void *user_data)
 									    &iter, buf);
 	ptr = g_slist_nth(music->paths, music->paths_len);
 	while (ptr) {
+		pthread_testcancel();
 		duration = get_duration((gchar *)ptr->data);
 		if (duration) {
 			gtk_list_store_set(music->list, &iter, 2, duration, -1);
@@ -305,12 +341,28 @@ void *duration_thread(void *user_data)
 		gtk_tree_model_iter_next(GTK_TREE_MODEL(music->list), &iter);
 		ptr = ptr->next;
 	}
+	music->dur_tid = 0;
 }
 
 void schedule_duration_thread(music_player_t *music)
 {
 	pthread_create(&music->dur_tid, NULL, duration_thread,
 				   music);
+}
+
+gboolean tree_view_search(GtkTreeModel *model, gint column,
+						  const gchar *key, GtkTreeIter *iter,
+						  gpointer user_data)
+{
+	gchar *string;
+
+	gtk_tree_model_get(model, iter, column, &string, -1);
+	if (strcasestr(string, key)) {
+		g_free(string);
+		return FALSE;
+	}
+	g_free(string);
+	return TRUE;
 }
 
 void tree_view_delete(GtkWidget *widget, GdkEvent *event,
@@ -358,15 +410,24 @@ void tree_view_delete(GtkWidget *widget, GdkEvent *event,
 	g_free(rows);
 }
 
-void start_progress_scale(music_player_t *music, guint max)
+void start_progress_scale(music_player_t *music)
 {
-	/*
-	 * max points to the duration of the song.
-	 */
-	gtk_range_set_range(GTK_RANGE(music->progress_scale), 0, max);
-
 	pthread_create(&music->tid, NULL, incr_progress_scale,
 				   music);
+}
+
+/*
+ * This will be called every time a new song
+ * is ready for playback to restart the scale.
+ */
+void restart_progress_scale(music_player_t *music,
+							guint duration)
+{
+	gtk_range_set_range(GTK_RANGE(music->progress_scale), 0,
+						duration);
+	gtk_range_set_value(GTK_RANGE(music->progress_scale), 0);
+
+	music->seconds = 0;
 }
 
 void resume_progress_scale(music_player_t *music)
@@ -384,19 +445,16 @@ void stop_progress_scale(music_player_t *music)
 {
 	music->pause = 0;
 	pthread_cond_signal(&music->cond);
-	pthread_cancel(music->tid);
-	music->seconds = 0;
+	if (music->tid) {
+		pthread_cancel(music->tid);
+		music->tid = 0;
+	}
+	gtk_range_set_range(GTK_RANGE(music->progress_scale), 0, 0);
 }
 
 void *incr_progress_scale(void *user_data)
 {
 	music_player_t *music = (music_player_t *)user_data;
-	GtkAdjustment *adjustment;
-	guint max;
-
-	adjustment = gtk_range_get_adjustment(GTK_RANGE(
-										  music->progress_scale));
-	max = gtk_adjustment_get_upper(adjustment);
 
 	while (1) {
 		if (music->pause) {
@@ -405,14 +463,11 @@ void *incr_progress_scale(void *user_data)
 			pthread_mutex_unlock(&music->mutex);
 		}
 		pthread_testcancel();
-		if (music->seconds >= max)
-			break;
 		gtk_range_set_value(GTK_RANGE(music->progress_scale),
 							music->seconds);
 		music->seconds++;
 		sleep(1);
 	}
-	music->seconds = 0;
 }
 
 gboolean progress_scale_changed(GtkRange *range,
@@ -674,6 +729,9 @@ void setup_tree_view(music_player_t *music)
 								   GTK_POLICY_NEVER, GTK_POLICY_ALWAYS);
 
 	music->tree_view = gtk_tree_view_new();
+	gtk_tree_view_set_search_column(GTK_TREE_VIEW(music->tree_view), 1);
+	gtk_tree_view_set_search_equal_func(GTK_TREE_VIEW(music->tree_view),
+										tree_view_search, music, NULL);
 	
 	g_signal_connect(G_OBJECT(music->tree_view), "row-activated",
 					 G_CALLBACK(play_song), music);
@@ -681,7 +739,6 @@ void setup_tree_view(music_player_t *music)
 					 G_CALLBACK(tree_view_menu_popup), music);
 	g_signal_connect_after(G_OBJECT(music->tree_view), "key-press-event",
 						   G_CALLBACK(tree_view_delete), music);
-
 	gtk_container_add(GTK_CONTAINER(music->scrolled_window), music->tree_view);
 
 	selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(music->tree_view));
