@@ -98,6 +98,7 @@ void stream_drain_complete(pa_stream *stream, int success,
 	 * AUDIO_END_STREAM is 0. Otherwise the current
 	 * stream got interrupted by a new song.
 	 */
+	fprintf(stdout, "Debug: Stopping stream for finished song.\n");
 	if (!AUDIO_END_STREAM(music)) {
 		next_song(music);
 	}
@@ -165,10 +166,11 @@ void stream_state_callback(pa_stream *stream, void *user_data)
 		case PA_STREAM_TERMINATED:
 		break;
 		case PA_STREAM_READY:
+			fprintf(stdout, "Debug: Starting stream for new song.\n");
 			av_stream = DECODER_CTX(music)->streams[DECODER_STREAM_ID(music)];
 
 			restart_progress_scale(music, get_song_duration(av_stream));
-			if (music->tid == 0)
+			if (!music->tid)
 				start_progress_scale(music);
 		break;
 	}

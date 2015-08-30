@@ -10,15 +10,17 @@ typedef struct music_player music_player_t;
 
 typedef struct music_player {
 	GtkWidget *window;
-	GtkWidget *vbox;
+	GtkWidget *vbox, *hbox, *hbox1;
 	GtkWidget *menu_bar;
 	GtkWidget *menu;
 	GtkWidget *toolbar;
+	GtkWidget *entry, *button;
 	GtkWidget *volume_scale;
 	GtkWidget *progress_scale;
 	GtkWidget *scrolled_window;
+	GtkWidget *list_box;
+	GtkWidget *list_box_menu;
 	GtkWidget *tree_view;
-	GtkWidget *tree_view_menu;
 	/*
  	 * These widgets are used as menu items.
  	 */
@@ -27,17 +29,7 @@ typedef struct music_player {
  	GtkWidget *menu_item_open_folder;
  	GtkWidget *menu_item_separator;
  	GtkWidget *menu_item_close;
- 	/*
- 	 * These widgets are used as popup menu items
- 	 * on a "button-press-event" signal on the
- 	 * GtkTreeView.
- 	 */
- 	GtkWidget *menu_item_play;
- 	GtkWidget *menu_item_pause;
- 	GtkWidget *menu_item_stop;
- 	GtkWidget *menu_item_next;
- 	GtkWidget *menu_item_prev;
- 	GtkWidget *menu_item_info;
+ 	GtkWidget *menu_item_delete;
 	/*
  	 * These widgets are used as toolbar items.
  	 */
@@ -45,6 +37,7 @@ typedef struct music_player {
  	GtkToolItem *tool_item_pause;
  	GtkToolItem *tool_item_stop;
  	GtkToolItem *tool_item_repeat;
+ 	GtkToolItem *tool_item_separator;
  	GtkToolItem *tool_item_volume;
 	/*
  	 * These datatypes are for use along with
@@ -54,9 +47,6 @@ typedef struct music_player {
  	 */
  	GtkTreeViewColumn *num_song, *song, *dur;
  	GtkCellRenderer *num_rend, *song_rend, *dur_rend;
- 	GtkListStore *list;
- 	GtkTreeIter iter;
- 	guint song_cnt;
  	/*
  	 * A counter for the song progress. It counts
  	 * in a unit of seconds.
@@ -71,20 +61,9 @@ typedef struct music_player {
  	pthread_cond_t cond;
  	guint pause;
  	guint repeat;
- 	/*
- 	 * The list below refers to the actual path
- 	 * of a song. GtkListStore will only contain
- 	 * the actual filename.
- 	 */
- 	GSList *paths;
- 	/*
- 	 * Datatypes below are used for a thread
- 	 * that is scheduled after songs have been
- 	 * added in a playlist for finding duration
- 	 * for each song.
- 	 */
- 	pthread_t dur_tid;
- 	guint paths_len;
+
+ 	playlist_t *playlists;
+ 	playlist_t *playlist;
 	/*
 	 * This struct is the song context. It
 	 * represents the decoder and the playback

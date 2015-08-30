@@ -35,19 +35,12 @@ int init_song_context(music_player_t *music, char *name)
 	int i;
 
 	DECODER_CTX(music) = avformat_alloc_context();
-	if (!DECODER_CTX(music)) {
-		fprintf(stderr, "Error; Decoder context failed to allocate.\n");
+	if (!DECODER_CTX(music))
 		return 0;
-	}
-	if (avformat_open_input(&DECODER_CTX(music), name, NULL, NULL) != 0) {
-		fprintf(stderr, "Error; %s is not a audio file\n", name);
+	if (avformat_open_input(&DECODER_CTX(music), name, NULL, NULL) != 0)
 		goto err;
-	}
-	if (avformat_find_stream_info(DECODER_CTX(music), NULL) < 0) {
-		fprintf(stderr, "Error; %s does not contain any stream\n",
-				name);
+	if (avformat_find_stream_info(DECODER_CTX(music), NULL) < 0)
 		goto err;
-	}
 	/*
 	 * Actually loop through all the present streams
 	 * and look for a stream of type AVMEDIA_TYPE_AUDIO
@@ -63,11 +56,8 @@ int init_song_context(music_player_t *music, char *name)
 			 */
 			DECODER_STREAM_ID(music) = i;
 
-	if (DECODER_STREAM_ID(music) == -1) {
-		fprintf(stderr, "Error; %s does not contain any audio stream\n",
-				name);
+	if (DECODER_STREAM_ID(music) == -1)
 		goto err;
-	}
 	/*
 	 * Get the AVCodecContext that we will use
 	 * to decode this audio stream.
@@ -195,6 +185,7 @@ int decode_audio_file(music_player_t *music, char *name)
 		cleanup_decoder(music);
 		return 0;
 	}
+	is_duration_added(music);
 	init_stream(music, name);
 
 	return 1;
@@ -213,11 +204,6 @@ int seek_frame(music_player_t *music)
 	return 0;
 }
 
-/*
- * Todo;
- * - Implement condition blocking instead of restarting
- *   the thread on progress scale usage.
- */
 void *audio_packet_loop(void *user_data)
 {
 	music_player_t *music = (music_player_t *)user_data;
@@ -331,7 +317,7 @@ void decoder_update_frame(music_player_t *music,
 						  long value, int flag)
 {
 	AVStream *stream;
-
+	
 	stream = DECODER_CTX(music)->streams[DECODER_STREAM_ID(music)];
 	music->song_ctx.decoder.seek = 1;
 	music->song_ctx.decoder.seek_val = value * stream->time_base.den;
